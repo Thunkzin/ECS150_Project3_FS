@@ -36,6 +36,7 @@ struct root_dir{				// 32 bytes
 	uint8_t root_padding[10];		// Unused or Padding
 }__attribute__((packed));
 
+// Global variables
 const char virtualDisk[8] = "ECS150FS";		// Declare a constant char array
 struct superblock sblock;			// Create a superblock struct instance
 struct root_dir fileInfo[FS_FILE_MAX_COUNT];	// Create a root directory instance
