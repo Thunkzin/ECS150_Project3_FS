@@ -7,7 +7,31 @@
 #include "disk.h"
 #include "fs.h"
 
-/* TODO: Phase 1 */
+// Superblock data structure that contains information about filesystem
+struct superblock{				// 4096 bytes
+	char signature[8];			// Signature
+	uint16_t total_disk_blocks;		// Total amount of blocks on virtual disk
+	uint16_t root_dir_index;		// Root directory block index
+	uint16_t dataBlock_startIndex;	// Data block start index
+	uint16_t total_dataBlocks; 		// Amount of data blocks
+	uint8_t sizeOf_fat; 			// Number of blocks for FAT
+	uint8_t sup_padding[4079];		// Unused or Padding
+}__attribute__((packed));			
+
+
+// FAT data structure with each entry of 2 bytes
+uint16_t *fat_entries;				// a pointer to FAT entries
+
+
+// Root Directory which contains information about the file
+struct root_dir{				// 32 bytes
+	char file_name[16];			// Filename (including NULL char)
+	uint32_t file_size;			// Size of the file
+	uint16_t firstDataBlock_index;		// Index of the first data block
+	uint8_t root_padding[10];		// Unused or Padding
+}__attribute__((packed));
+
+const char virtualDisk = 'ECS150FS';
 
 int fs_mount(const char *diskname)
 {
