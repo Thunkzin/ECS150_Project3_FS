@@ -30,7 +30,7 @@ uint16_t *fat;					// a pointer to FAT
 
 // Root Directory which contains information about the file
 struct root_dir{				// 32 bytes
-	char file_name[16];			// Filename (including NULL char)
+	char file_name[FS_FILENAME_LEN];	// Filename (including NULL char)
 	uint32_t file_size;			// Size of the file
 	uint16_t firstDataBlock_index;		// Index of the first data block
 	uint8_t root_padding[10];		// Unused or Padding
@@ -88,15 +88,6 @@ int fs_mount(const char *diskname)
         		printf("Entry %zu is the end of a file.\n", i);
     		} else {
 			printf("Entry %zu points to block %u.\n", i, fat[i]);
-		}
-	}
-	
-	for (size_t i = 0; i < totalEntries; i++) {
-    	if (fat[i] != 0 && fat[i] != FAT_EOC) {
-			if (fat[i] >= sblock.total_disk_blocks) {
-				fprintf(stderr, "FAT entry %zu contains invalid block index %u.\n", i, fat[i]);
-				return -1; 
-			}
 		}
 	}
 	*/
