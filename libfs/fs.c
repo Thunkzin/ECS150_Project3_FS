@@ -16,33 +16,33 @@
 
 // Superblock data structure which contains information about filesystem
 struct superblock{					
-	char signature[8];			// Signature
+	char signature[8];				// Signature
 	uint16_t total_disk_blocks;		// Total amount of blocks on virtual disk
-	uint16_t rootDir_blockIndex;		// Root directory block index
-	uint16_t dataBlock_startIndex;		// Data block start index
+	uint16_t rootDir_blockIndex;	// Root directory block index
+	uint16_t dataBlock_startIndex;	// Data block start index
 	uint16_t numOf_dataBlocks;		// Amount of data blocks
 	uint8_t numOf_fatBlocks; 		// Number of blocks for FAT
 	uint8_t unused[4079];			// Unused or Padding
 }__attribute__((packed));		
 
 // FAT entry data structure
-struct fatEntry {		// 2 bytes per entry
+struct fatEntry {			// 2 bytes per entry
     uint16_t content;		// fat entry stores the index of the next data block
 }__attribute__((packed));
 
 // A single root directory entry which contains information about the file
 struct rootDirEntry{					// 32 bytes per entry
-	char file_name[FS_FILENAME_LEN];		// Filename (including NULL char) 16bytes 
-	uint32_t file_size;				// Size of the file
-	uint16_t firstDataBlock_index;			// Index of the first data block
-	uint8_t unused[10];				// Unused or Padding
+	char file_name[FS_FILENAME_LEN];	// Filename (including NULL char) 16bytes 
+	uint32_t file_size;					// Size of the file
+	uint16_t firstDataBlock_index;		// Index of the first data block
+	uint8_t unused[10];					// Unused or Padding
 }__attribute__((packed));
 
 // File descriptor data structure
-struct fileDescriptor {
-    size_t offset;
-	int fdIndex;		// -1 for closed or unused file descriptors
-    int rIndex;
+struct fileDescriptor {	
+    size_t fdOffset;
+	int fdIndex;		// -1 for closed or unused fd
+    int rIndex;			// index of the file in root directory
 }__attribute__((packed));
     
 // Global instances and variables
@@ -50,48 +50,50 @@ struct superblock sblock;
 struct fatEntry *fat;
 struct rootDirEntry rdir[FS_FILE_MAX_COUNT];		// Total of 128 entries 
 struct fileDescriptor fds[FS_OPEN_MAX_COUNT];		// Total of 32 open file descriptors
-const char myVirtualDisk[8] = "ECS150FS";		// Declare a constant char array
-// int isMounted = 0;					// Flat to track if filesystem is currently mounted
+const char myVirtualDisk[8] = "ECS150FS";			// Declare a constant char array
+int isMounted = 0;									// Flag to track if filesystem is currently mounted
 
 
 // Helper function prototypes
-int count_free_fat_entries(void);			// Function to count free FAT entries
-int count_free_root_dir_entries(void);			// Function to count free root directory entries
+int count_free_fat_entries(void);					// Function to count free FAT entries
+int count_free_root_dir_entries(void);				// Function to count free root directory entries
 int find_empty_rIndex(struct rootDirEntry *rDir);	// Function to find an empty entry index in root directory
-int count_open_fds(void);				// Function to keep track of opened file descriptors
+int count_open_fds(void);							// Function to keep track of opened file descriptors
+int get_data_block_index();
+
 
 
 /* Helper function definitions */
 // Function to count free fat entries
-int count_free_fat_entries(void) {			// Use in fs_info() 
-    int free_fat_count = 0;				// Initialize a variable to store fat free count
+int count_free_fat_entries(void) {						// Use in fs_info() 
+    int free_fat_count = 0;								// Initialize a variable to store fat free count
     for(int i = 0; i < sblock.numOf_dataBlocks; i++) {	// since there are as many entries as data blocks in the disk
-        if(fat[i].content == FAT_FREE) {		// Assuming 0: corresponds to fat free entry
-            free_fat_count++;				// Increment the count
+        if(fat[i].content == FAT_FREE) {				// Assuming 0: corresponds to fat free entry
+            free_fat_count++;							// Increment the count
         }
     }
     return free_fat_count;
 } // end of count_free_fat_entries function
 
 // Function to count free root directory entries
-int count_free_root_dir_entries(void) {			// Use in fs_info() 
-    int free_root_dir_count = 0;			// Initialize a variable to store free root directory count
+int count_free_root_dir_entries(void) {				// Use in fs_info() 
+    int free_root_dir_count = 0;					// Initialize a variable to store free root directory count
     for(int i = 0; i < FS_FILE_MAX_COUNT; i++) {	// Iterate over 128 entries of the root directory 
-        if(rdir[i].file_name[0] == '\0') {		// Assumimg empty file as free entry
-            free_root_dir_count++;			// Increment the count
+        if(rdir[i].file_name[0] == '\0') {			// Assumimg empty file as free entry
+            free_root_dir_count++;					// Increment the count
         }
     }
     return free_root_dir_count;
 } // end of count_free_root_dir_entries
 
 // Function to find the position of an empty entry to create a file in the root directory.
-int find_empty_rIndex(struct rootDirEntry *rDir) {	// Use in fs_create()
+int find_empty_rIndex(struct rootDirEntry *rDir) {		// Use in fs_create()
     for (int i = 0; i < FS_FILE_MAX_COUNT; i++) {	
         if (rdir[i].file_name[0] == '\0') {
-            return i;					// Returns the index of the empty entry
+            return i;									// Returns the index of the empty entry
         }
     }
-    return -1;						// or -1 if no empty entry was found.
+    return -1;											// or -1 if no empty entry was found.
 }
 
 // Function to count open file descriptors
@@ -99,10 +101,10 @@ int count_open_fds(void){				// Use in fs_open()
 	int open_fds = 0;
 	for(int i = 0; i < FS_OPEN_MAX_COUNT; i++){
 		if(fds[i].fdIndex != -1){		// -1 means fd is closed or unused.
-			open_fds++;			// Increment the count
+			open_fds++;					// Increment the count
 		}
 	}
-	return open_fds;				// return the number of currently opened fds
+	return open_fds;					// return the number of currently opened fds
 }
 
 
@@ -116,7 +118,7 @@ int fs_mount(const char *diskname)
     }
 	
 	// Open the virtual disk file
-    if(block_disk_open(diskname) == -1){		// checking the condition
+    if(block_disk_open(diskname) == -1){				// checking the condition
 		fprintf(stderr, "Cannot open the disk.\n" );
         return -1;
     }
@@ -168,10 +170,12 @@ int fs_mount(const char *diskname)
 
 	// Initialize the file descriptors
 	for(int i = 0; i < FS_OPEN_MAX_COUNT; i++){
-		fds[i].fdIndex = -1;	// Mark all file descriptors as unused
-		fds[i].rIndex = -1;	// Initialize rIndex to invalid value
-		fds[i].offset = 0;	// Initialize offset to zero
+		fds[i].fdIndex = -1;		// Mark all file descriptors as unused
+		fds[i].rIndex = -1;			// Initialize rIndex to invalid value
+		fds[i].fdOffset = 0;		// Initialize offset to zero
 	}
+
+	isMounted = 1;	// Mark as mounted
 
 	return 0; // success
 }
@@ -179,8 +183,18 @@ int fs_mount(const char *diskname)
 /* TODO: Phase 1 */
 int fs_umount(void)
 {
-	// Check if no FS is currently mounted
-    if(block_disk_count() == -1) {
+/**
+ * fs_umount - Unmount file system
+ *
+ * Unmount the currently mounted file system and close the underlying virtual
+ * disk file.
+ *
+ * Return: -1 if no FS is currently mounted, or if the virtual disk cannot be
+ * closed, or if there are still open file descriptors. 0 otherwise.
+ */
+
+	// Check if no FS is currently mounted  // ??? block_disk_count? or block_disk_close?
+    if(block_disk_close() == -1) {
         fprintf(stderr, "No file system is currently mounted.\n");
         return -1;
     }
@@ -219,6 +233,8 @@ int fs_umount(void)
 		return -1;
 	}
 
+	isMounted = 0;	// Mark as unmounted
+
 	return 0; // unmounted successful
 }
 
@@ -238,7 +254,7 @@ int fs_info(void)
  * rdir_free_ratio=128/128
  */
 	// Check if no FS is currently mounted
-    if (block_disk_count() == -1) {
+    if(isMounted == 0){
         fprintf(stderr, "No file system is currently mounted.\n");
         return -1;
     }
@@ -279,7 +295,7 @@ int fs_create(const char *filename)
  * if the root directory already contains %FS_FILE_MAX_COUNT files. 0 otherwise.
  */
 	// Check if no FS is currently mounted
-    if(block_disk_count() == -1) {
+    if(isMounted == 0){
         fprintf(stderr, "No FS currently mounted.\n");
         return -1;
     }
@@ -335,12 +351,12 @@ int fs_delete(const char *filename)
  */
 
 	// Check if no FS is currently mounted
-    if(block_disk_count() == -1) {
+    if(isMounted == 0){
         fprintf(stderr, "No FS currently mounted.\n");
         return -1;
     }
 
-	// Check if the filename valid or too long
+	// Check if the filename is valid or too long
 	if(filename == NULL || strlen(filename) > FS_FILENAME_LEN){	
 		fprintf(stderr, "Invalid filename.\n");
 		return -1;
@@ -350,7 +366,7 @@ int fs_delete(const char *filename)
 	int found = -1;
 	for(int i = 0; i < FS_FILE_MAX_COUNT; i++){
 		if(strcmp(rdir[i].file_name, filename) == 0){	// Iterate over 128 files and compare their filenames
-			found = i;
+			found = i;	// if found the index with the same name, store it in 'found' var
 			break;
 		}
 	}
@@ -362,7 +378,7 @@ int fs_delete(const char *filename)
 
 	// Check if the file is already open
 	for(int i = 0; i < FS_OPEN_MAX_COUNT; i++){
-		if(fds[i].fdIndex == found){
+		if(fds[i].rIndex == found){
 			fprintf(stderr, "File is currently open.\n");
 			return -1;
 		}
@@ -397,7 +413,7 @@ int fs_ls(void)
  */
 
 	// Check if no FS is currently mounted
-    if(block_disk_count() == -1) {
+    if(isMounted == 0){
         fprintf(stderr, "No FS currently mounted.\n");
         return -1;
     }
@@ -439,7 +455,7 @@ int fs_open(const char *filename)
  */	
 
 	// Check if no FS is currently mounted
-    if(block_disk_count() == -1) {
+    if(isMounted == 0){
         fprintf(stderr, "No FS currently mounted.\n");
         return -1;
     }
@@ -450,11 +466,11 @@ int fs_open(const char *filename)
 		return -1;
 	}
 
-	// Check if the given @filename exists in root directory 
-	int found = -1;
+	// Check if the given input @filename exists in root directory 
+	int found = -1;		
 	for(int i = 0; i < FS_FILE_MAX_COUNT; i++){
 		if(strcmp(rdir[i].file_name, filename) == 0){	// Iterate through 128 files and compare their filenames
-			found = i;
+			found = i;	// update root directory index 
 			break;
 		}
 	}
@@ -473,19 +489,19 @@ int fs_open(const char *filename)
 	// Find the first availabe location in file descriptor data structure
 	int loc = -1;
 	for(int i = 0; i < FS_OPEN_MAX_COUNT; i++){
-		if(fds[i].fdIndex == -1){		// if found,
+		if(fds[i].fdIndex == -1){		// if unused index is found,
 			loc = i;					// return the location.
 			break;
 		}
 	}
 
 	// Initialize the file descriptor's values at the available location
-	fds[loc].offset = 0;
-	fds[loc].fdIndex = loc;
+	fds[loc].fdOffset = 0;
+	fds[loc].fdIndex = loc;		
 	fds[loc].rIndex = found;	// assign it to the file Index that matches with the input filename in rd.
 
 
-	return loc;	// return fd
+	return fds[loc].fdIndex;	// return open fd 
 }
 
 /* TODO: Phase 3 */
@@ -502,7 +518,7 @@ int fs_close(int fd)
  */
 
 	// Check if no FS is currently mounted
-    if(block_disk_count() == -1) {
+    if(isMounted == 0){
         fprintf(stderr, "No FS currently mounted.\n");
         return -1;
     }
@@ -515,11 +531,11 @@ int fs_close(int fd)
 		return -1;
 	}
 
-	// Close the file descriptor by setting the fdIndex to -1
+	// Close the file descriptor by setting to -1 and offset to 0
 	fds[fd].fdIndex = -1;
 	fds[fd].rIndex = -1;
-	fds[fd].offset = 0;
-	
+	fds[fd].fdOffset = 0;
+			
 	return 0;	// success 
 }
 
@@ -538,7 +554,7 @@ int fs_stat(int fd)
  */
 
 	// Check if no FS is currently mounted
-    if(block_disk_count() == -1) {
+    if(isMounted == 0){
         fprintf(stderr, "No FS currently mounted.\n");
         return -1;
     }
@@ -551,36 +567,11 @@ int fs_stat(int fd)
 		return -1;
 	}
 
-	// Get the file size from the root directory
-	/* 
-	Scenario: @fd = 1; fds[32]; rdir[128];
+	// Get the index in the root directory to access the file size
+	int rootIndex = fds[fd].rIndex;
 
-			At fd[0]: 
-			fds[0].fdIndex = 1; 
-			fds[0].rIndex = 10;	// index of file descriptor in the root directory entries
-			fds[0].offset = 0;
-
-			rdir[fds[0].rIndex].file_size = rdir[10].file_size = ?
-
-	step 1: Compare @fd in the file descriptor entry
-			if(fds[i].fdIndex == @fd)	// 1 == 1
-
-			if true: 
-			int returnIndex = fds[i].rIndex;	// equal to 15
-			return rdir[returnIndex].file_size; // rdir[15].file_size
-	*/
-
-	// Interate through all the file descriptors
-	for(int i = 0; i < FS_OPEN_MAX_COUNT; i++){	
-		// Check if the fdIndex matches the input fd
-		if(fds[i].fdIndex == fd){		
-			// If yes, then return the file size from the corresponding	root directory entry
-			return rdir[fds[i].rIndex].file_size;
-		}
-	}
-
-	// If no match found in the file descriptors, return -1.
-	return -1;
+	// Return the file size from the corresponding root directory entry
+	return rdir[rootIndex].file_size;
 }
 
 /* TODO: Phase 3 */
@@ -599,18 +590,136 @@ int fs_lseek(int fd, size_t offset)
  * invalid (i.e., out of bounds, or not currently open), or if @offset is larger
  * than the current file size. 0 otherwise.
  */
-	
+
+	// Check if FS is currently mounted
+	if(isMounted == 0){
+        fprintf(stderr, "No FS currently mounted.\n");
+        return -1;
+    }
+
+	// Check if @fd is valid (out of bounds, or not currently open)
+	if(fd < 0 || fd >= FS_OPEN_MAX_COUNT || fds[fd].fdIndex == -1){
+		return -1;
+	}
+
+	// Get the current file size 
+	int current_fileSize = fs_stat(fd);
+	if(current_fileSize == -1){
+		// If fs_stat returns -1, there was an error getting the file size
+		return -1;
+	}
+
+	// Check if @offset is larger than the current file size
+	if(offset > current_fileSize){
+		return -1;
+	}
+
+	// Update the offset in the file descriptor
+	fds[fd].fdOffset = offset;
+
+    return 0;
 }
 
 /* TODO: Phase 4 */
 int fs_write(int fd, void *buf, size_t count)
 {
+/**
+ * fs_write - Write to a file
+ * @fd: File descriptor
+ * @buf: Data buffer to write in the file
+ * @count: Number of bytes of data to be written
+ *
+ * Attempt to write @count bytes of data from buffer pointer by @buf into the
+ * file referenced by file descriptor @fd. It is assumed that @buf holds at
+ * least @count bytes.
+ *
+ * When the function attempts to write past the end of the file, the file is
+ * automatically extended to hold the additional bytes. If the underlying disk
+ * runs out of space while performing a write operation, fs_write() should write
+ * as many bytes as possible. The number of written bytes can therefore be
+ * smaller than @count (it can even be 0 if there is no more space on disk).
+ *
+ * Return: -1 if no FS is currently mounted, or if file descriptor @fd is
+ * invalid (out of bounds or not currently open), or if @buf is NULL. Otherwise
+ * return the number of bytes actually written.
+ */
+
+	// Check if FS is currently mounted
+	if(isMounted == 0){
+		fprintf(stderr, "No FS currently mounted.\n");
+		return 0;
+	}
+
+	// Check if file descriptor is valid or out of bounds or not currently open
+	if(fd < 0 || fd >= FS_OPEN_MAX_COUNT || fds[fd].fdIndex == -1){
+		fprintf(stderr, "Invalid file descriptor.\n");
+		return -1;
+	}
+
+	// Check if the buffer is full
+	if(buf == NULL){
+		fprintf(stderr, "Buffer is NULL.\n");
+		return 0;
+	}
 	
 }
 
 /* TODO: Phase 4 */
 int fs_read(int fd, void *buf, size_t count)
 {
+/**
+ * fs_read - Read from a file
+ * @fd: File descriptor
+ * @buf: Data buffer to be filled with data
+ * @count: Number of bytes of data to be read
+ *
+ * Attempt to read @count bytes of data from the file referenced by file
+ * descriptor @fd into buffer pointer by @buf. It is assumed that @buf is large
+ * enough to hold at least @count bytes.
+ *
+ * The number of bytes read can be smaller than @count if there are less than
+ * @count bytes until the end of the file (it can even be 0 if the file offset
+ * is at the end of the file). The file offset of the file descriptor is
+ * implicitly incremented by the number of bytes that were actually read.
+ *
+ * Return: -1 if no FS is currently mounted, or if file descriptor @fd is
+ * invalid (out of bounds or not currently open), or if @buf is NULL. Otherwise
+ * return the number of bytes actually read.
+ */
+
+	/*
+	Step 1: Find the data block index. Implement a helper function calculates 
+	the index of the data block corresponding to the file's current offset. 
+	This function will need to take into account the size of the blocks and 
+	the file's offset.
+
+	Step 2: Writing: First, read the block from disk into the bounce buffer. 
+	Then, modify the part of the buffer that starts from the file's offset 
+	with the data from the user-supplied buffer. Finally, write the modified 
+	block back to disk.
+	*/
+
+	// Check if FS is currently mounted
+	if(isMounted == 0){
+		fprintf(stderr, "No FS currently mounted.\n");
+		return 0;
+	}
+
+	// Check if file descriptor is valid or out of bounds or not currently open
+	if(fd < 0 || fd >= FS_OPEN_MAX_COUNT || fds[fd].fdIndex == -1){
+		fprintf(stderr, "Invalid file descriptor.\n");
+		return -1;
+	}
+
+	// Check if the user buffer is full
+	if(buf == NULL){
+		fprintf(stderr, "Buffer is NULL.\n");
+		return 0;
+	}
+
+	
+
+	
 	
 }
 
