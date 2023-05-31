@@ -609,12 +609,14 @@ int fs_lseek(int fd, size_t offset)
 		return -1;
 	}
 
-	// Get the current file size 
-	size_t current_fileSize = fs_stat(fd);
-	if(current_fileSize == -1){
+	// Check the file size 
+	int check_fileSize = fs_stat(fd);
+	if(check_fileSize == -1){
 		// If fs_stat returns -1, there was an error getting the file size
 		return -1;
 	}
+
+	size_t current_fileSize = (size_t) check_fileSize;
 
 	// Check if @offset is larger than the current file size
 	if(offset > current_fileSize){
@@ -626,141 +628,10 @@ int fs_lseek(int fd, size_t offset)
 
     return 0;
 }
-/*
 
+/* TODO: Phase 4 
 int fs_write(int fd, void *buf, size_t count)
-{
-/**
- * fs_write - Write to a file
- * @fd: File descriptor
- * @buf: Data buffer to write in the file
- * @count: Number of bytes of data to be written
- *
- * Attempt to write @count bytes of data from buffer pointer by @buf into the
- * file referenced by file descriptor @fd. It is assumed that @buf holds at
- * least @count bytes.
- *
- * When the function attempts to write past the end of the file, the file is
- * automatically extended to hold the additional bytes. If the underlying disk
- * runs out of space while performing a write operation, fs_write() should write
- * as many bytes as possible. The number of written bytes can therefore be
- * smaller than @count (it can even be 0 if there is no more space on disk).
- *
- * Return: -1 if no FS is currently mounted, or if file descriptor @fd is
- * invalid (out of bounds or not currently open), or if @buf is NULL. Otherwise
- * return the number of bytes actually written.
-
-
-	// Check if FS is currently mounted
-	if(isMounted == 0){
-		fprintf(stderr, "No FS currently mounted.\n");
-		return 0;
-	}
-
-	// Check if file descriptor is valid or out of bounds or not currently open
-	if(fd < 0 || fd >= FS_OPEN_MAX_COUNT || fds[fd].fdIndex == -1){
-		fprintf(stderr, "Invalid file descriptor.\n");
-		return -1;
-	}
-
-	// Check if the buffer is full
-	if(buf == NULL){
-		fprintf(stderr, "Buffer is NULL.\n");
-		return 0;
-	}
-	
-}
-
 
 int fs_read(int fd, void *buf, size_t count)
-{
-
- * fs_read - Read from a file
- * @fd: File descriptor
- * @buf: Data buffer to be filled with data
- * @count: Number of bytes of data to be read
- *
- * Attempt to read @count bytes of data from the file referenced by file
- * descriptor @fd into buffer pointer by @buf. It is assumed that @buf is large
- * enough to hold at least @count bytes.
- *
- * The number of bytes read can be smaller than @count if there are less than
- * @count bytes until the end of the file (it can even be 0 if the file offset
- * is at the end of the file). The file offset of the file descriptor is
- * implicitly incremented by the number of bytes that were actually read.
- *
- * Return: -1 if no FS is currently mounted, or if file descriptor @fd is
- * invalid (out of bounds or not currently open), or if @buf is NULL. Otherwise
- * return the number of bytes actually read.
- 
-
-
-	// Check if FS is currently mounted
-	if(isMounted == 0){
-		fprintf(stderr, "No FS currently mounted.\n");
-		return 0;
-	}
-
-	// Check if file descriptor is valid or out of bounds or not currently open
-	if(fd < 0 || fd >= FS_OPEN_MAX_COUNT || fds[fd].fdIndex == -1){
-		fprintf(stderr, "Invalid file descriptor.\n");
-		return -1;
-	}
-
-	// Check if the user buffer is full
-	if(buf == NULL){
-		fprintf(stderr, "Buffer is NULL.\n");
-		return 0;
-	}
-
-
-
-	// Initialize left and right offsets to read into buffer
-	size_t leftOffset = 0;	
-	size_t rightOffset = BLOCK_SIZE;	// default value
-
-	
-	if fdOffset < BLOCKSIZE, the leftOffset will be the same as the file descriptor's offset.
-	0 % 4096 = 0
-	1 % 4096 = 2
-	2 % 4096 = 3
-	3 % 4096 = 4
-	.
-	.
-	.
-	4096 % 4096 = 0
-	
-				bytesToRead
-	|------|-----------------|------------| a whole block: 4096 bytes
-		  left				right	
-
-	
-	
-	// set the left offset of the given parameter @fd 
-	leftOffset = (fds[fd].fdOffset) % BLOCK_SIZE;
-
-	if(count + leftOffset < BLOCK_SIZE){
-		rightOffset = BLOCK_SIZE - (leftOffset + count);
-	}
-	printf("Debug: leftOffset = %zu, rightOffset = %zu\n", leftOffset, rightOffset);
-
-	// Allocate memrory for bounce buffer
-	void *bounce_buffer = malloc(BLOCK_SIZE);
-	if(bounce_buffer == NULL){
-		return -1; // allocation failed
-	}
-
-	// Reading process: data blocks -> bounce buffer -> user-buffer
-	int dataBlock_realIndex = get_data_block_index(fd);
-	if(block_read(dataBlock_realIndex, bounce_buffer) == -1){
-		return -1;
-	}
-		
-	
-}
-
 */
-
-
-
 
