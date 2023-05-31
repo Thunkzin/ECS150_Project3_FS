@@ -11,6 +11,7 @@
 #define FAT_BLOCK_INDEX 1
 #define FAT_EOC 0xFFFF
 #define FAT_FREE 0
+#define min(a, b) ((a) < (b) ? (a) : (b))
 
 /* TODO: Phase 1 */
 
@@ -60,7 +61,7 @@ int count_free_root_dir_entries(void);				// Function to count free root directo
 int find_empty_rIndex(struct rootDirEntry *rDir);	// Function to find an empty entry index in root directory
 int count_open_fds(void);							// Function to keep track of opened file descriptors
 int get_data_block_index();							// Function to get the index of the data block corresponding to the offset
-
+int allocate_new_data_block();						// Function to find free block index using first-fit strategy
 
 
 /* Helper function definitions */
@@ -120,6 +121,18 @@ int get_data_block_index(int fd){							// use in fs_read() and fs_write()
     return realIndex;
 }
 
+int allocate_new_data_block(){								// use in fs_write() 
+	// Loop through each block in the FAT
+    for (int i = 0; i < sblock.numOf_dataBlocks; i++) {
+        // If the FAT entry is 0, this block is free
+        if (fat[i].content == FAT_FREE) {
+            // Return the index of the free block
+            return i;
+        }
+    }
+    // If no free block is found, return -1
+    return -1; 
+}
 
 /* TODO: Phase 1 */
 int fs_mount(const char *diskname)
@@ -629,9 +642,205 @@ int fs_lseek(int fd, size_t offset)
     return 0;
 }
 
-/* TODO: Phase 4 
+/* TODO: Phase 4 */
 int fs_write(int fd, void *buf, size_t count)
+{
+/**
+ * fs_write - Write to a file
+ * @fd: File descriptor
+ * @buf: Data buffer to write in the file
+ * @count: Number of bytes of data to be written
+ *
+ * Attempt to write @count bytes of data from buffer pointer by @buf into the
+ * file referenced by file descriptor @fd. It is assumed that @buf holds at
+ * least @count bytes.
+ *
+ * When the function attempts to write past the end of the file, the file is
+ * automatically extended to hold the additional bytes. If the underlying disk
+ * runs out of space while performing a write operation, fs_write() should write
+ * as many bytes as possible. The number of written bytes can therefore be
+ * smaller than @count (it can even be 0 if there is no more space on disk).
+ *
+ * Return: -1 if no FS is currently mounted, or if file descriptor @fd is
+ * invalid (out of bounds or not currently open), or if @buf is NULL. Otherwise
+ * return the number of bytes actually written.
+ */
 
+	// Check if FS is currently mounted
+	if(isMounted == 0){
+		fprintf(stderr, "No FS currently mounted.\n");
+		return 0;
+	}
+
+	// Check if file descriptor is valid or out of bounds or not currently open
+	if(fd < 0 || fd >= FS_OPEN_MAX_COUNT || fds[fd].fdIndex == -1){
+		fprintf(stderr, "Invalid file descriptor.\n");
+		return -1;
+	}
+
+	// Check if the buffer is NULL
+	if(buf == NULL){
+		fprintf(stderr, "Buffer is NULL.\n");
+		return 0;
+	}
+
+	size_t current_offset = fds[fd].fdOffset;
+    size_t remainingBytes  = count;
+    size_t bytesWritten = 0;
+
+    int rootIndex = fds[fd].rIndex;
+    int dataIndex = rdir[rootIndex].firstDataBlock_index;
+
+    int dataBlock_realIndex = sblock.dataBlock_startIndex + dataIndex;
+
+    void *bBuf = malloc(BLOCK_SIZE);
+    if (bBuf == NULL) {
+        return -1;
+    }
+
+    while (remainingBytes > 0) {
+        int bytesInCurrentBlock = BLOCK_SIZE - (current_offset % BLOCK_SIZE);
+        int bytesToWrite = min(bytesInCurrentBlock, remainingBytes);
+
+        if (current_offset % BLOCK_SIZE != 0 || bytesToWrite < BLOCK_SIZE) {
+            if (block_read(dataBlock_realIndex, bBuf) == -1) {
+                free(bBuf);
+                return -1;
+            }
+        }
+
+        memcpy((char*)bBuf + (current_offset % BLOCK_SIZE), (char*)buf + bytesWritten, bytesToWrite);
+
+        if (block_write(dataBlock_realIndex, bBuf) == -1) {
+            free(bBuf);
+            return -1;
+        }
+
+        bytesWritten += bytesToWrite;
+        remainingBytes -= bytesToWrite;
+        current_offset += bytesToWrite;
+
+        if (remainingBytes > 0) {
+            if (fat[dataIndex].content == FAT_EOC) {
+                int newBlock = allocate_new_data_block();
+                if (newBlock == -1) {
+                    break;
+                }
+                fat[dataIndex].content = newBlock;
+                dataIndex = newBlock;
+                fat[dataIndex].content = FAT_EOC;
+            } else {
+                dataIndex = fat[dataIndex].content;
+            }
+            dataBlock_realIndex = sblock.dataBlock_startIndex + dataIndex;
+        }
+    }
+
+    fds[fd].fdOffset = current_offset;
+
+    free(bBuf);
+
+    return bytesWritten;
+	
+}
+
+/* TODO: Phase 4 */
 int fs_read(int fd, void *buf, size_t count)
-*/
+{
+/**
+ * fs_read - Read from a file
+ * @fd: File descriptor
+ * @buf: Data buffer to be filled with data
+ * @count: Number of bytes of data to be read
+ *
+ * Attempt to read @count bytes of data from the file referenced by file
+ * descriptor @fd into buffer pointer by @buf. It is assumed that @buf is large
+ * enough to hold at least @count bytes.
+ *
+ * The number of bytes read can be smaller than @count if there are less than
+ * @count bytes until the end of the file (it can even be 0 if the file offset
+ * is at the end of the file). The file offset of the file descriptor is
+ * implicitly incremented by the number of bytes that were actually read.
+ *
+ * Return: -1 if no FS is currently mounted, or if file descriptor @fd is
+ * invalid (out of bounds or not currently open), or if @buf is NULL. Otherwise
+ * return the number of bytes actually read.
+ */
+
+	// Check if FS is currently mounted
+	if(isMounted == 0){
+		fprintf(stderr, "No FS currently mounted.\n");
+		return 0;
+	}
+
+	// Check if file descriptor is valid or out of bounds or not currently open
+	if(fd < 0 || fd >= FS_OPEN_MAX_COUNT || fds[fd].fdIndex == -1){
+		fprintf(stderr, "Invalid file descriptor.\n");
+		return -1;
+	}
+
+	// Check if the buffer is NULL
+	if(buf == NULL){
+		fprintf(stderr, "Buffer is NULL.\n");
+		return 0;
+	}
+	
+	// fs_read(fd, buf, count);
+	// fs_read(10, buf, 8200);
+	
+	// Retrieve the file descriptor's current offset
+	size_t current_offset = fds[fd].fdOffset;  			// current_offset = 10
+	size_t remainingBytes  = count;						// remainingBytes  = 8200
+	size_t bytesRead = 0;								// Total number of bytes read
+
+	// Retrieve first data block index stored in root directory
+	int rootIndex = fds[fd].rIndex; 
+	int dataIndex = rdir[rootIndex].firstDataBlock_index; 				// dataIndex = 2
+
+	// Find he actual index of the data block correspond to @fd on disk
+	int dataBlock_realIndex = sblock.dataBlock_startIndex + dataIndex;	// realIndex = 13 + 2 = 15
+
+	// Allocate the bounce buffer
+    void *bBuf = malloc(BLOCK_SIZE);
+    if (bBuf == NULL) {
+        return -1;  // Failed to allocate memory
+    }
+
+    // Read the data from the data blocks to bounce buffer (one block at a time)
+	while(remainingBytes > 0){
+    	int result = block_read(dataBlock_realIndex, bBuf);  // read the first data block correspond to @fd
+		if (result == -1){
+			free(bBuf);
+			return -1;  // Error reading block from disk
+		}
+		// Calculate the remaining bytes in the current block
+    	int bytesInCurrentBlock = BLOCK_SIZE - (current_offset % BLOCK_SIZE);
+		
+		// Determine how many bytes to read in this iteration
+		int bytesToRead = min(bytesInCurrentBlock, remainingBytes);
+		// Copy the appropriate amount of data from the bounce buffer to the user buffer
+		memcpy((char*)buf + bytesRead, (char*)bBuf + current_offset % BLOCK_SIZE, bytesToRead);
+
+
+		// Update the total bytes read, remainingBytes, and the file descriptor offset
+		bytesRead += bytesToRead;
+		remainingBytes -= bytesToRead;
+		current_offset += bytesToRead;
+		
+		// Proceed to next data block if there are still remaining bytes to read
+		if(remainingBytes > 0) {
+			dataIndex = fat[dataIndex].content;		// get next datablock index stored in fat entry
+			if(dataIndex == FAT_EOC){
+				break; 			// reach end of chain
+			}
+			dataBlock_realIndex = sblock.dataBlock_startIndex + dataIndex;	// update next index of the disk
+		}
+	}
+
+	// Cleanup: Free the bounce buffer
+	free(bBuf);
+
+	// Return the total number of bytes read into the buffer
+	return bytesRead;
+}
 
