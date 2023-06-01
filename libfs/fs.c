@@ -7,13 +7,20 @@
 #include "disk.h"
 #include "fs.h"
 
+#if 1
+#define fs_print(fmt, ...) \
+    fprintf(stderr, "%s: "fmt"\n", __func__, ##__VA_ARGS__)
+#else
+#define fs_print(...) do { } while(0)
+#endif
+
+
 #define SUPERBLOCK_INDEX 0
 #define FAT_BLOCK_INDEX 1
 #define FAT_EOC 0xFFFF
 #define FAT_FREE 0
 #define min(a, b) ((a) < (b) ? (a) : (b))
 
-/* TODO: Phase 1 */
 
 // Superblock data structure which contains information about filesystem
 struct superblock{					
@@ -134,18 +141,18 @@ int allocate_new_data_block(){								// use in fs_write()
     return -1; 
 }
 
-/* TODO: Phase 1 */
+
 int fs_mount(const char *diskname)
 {
 	// Check if a disk is already open
     if(block_disk_count() != -1){
-        //fs_print("A disk is already mounted.\n");
+        fs_print("A disk is already mounted.\n");
         return -1;
     }
 	
 	// Open the virtual disk file
     if(block_disk_open(diskname) == -1){				// checking the condition
-		//fs_print("Cannot open the disk.\n" );
+		fs_print("Cannot open the disk.\n" );
         return -1;
     }
     
@@ -156,13 +163,13 @@ int fs_mount(const char *diskname)
 
 	// Error handling: check the signature of the file system
 	if(strncmp(sblock.signature, myVirtualDisk, 8) != 0){
-		//fs_print("Signature specification does not match.\n" );
+		fs_print("Signature specification does not match.\n" );
 		return -1;
 	}
 
 	// Error handling: check if the data block counts is correct
 	if(sblock.total_disk_blocks != block_disk_count()){
-		//fs_print("block count does not match.\n" );
+		fs_print("block count does not match.\n" );
 		return -1;
 	}
 
@@ -179,7 +186,7 @@ int fs_mount(const char *diskname)
 	// Read each block of the FAT from the disk and store it in the allocated memory.
 	for(uint8_t i = 0; i < sblock.numOf_fatBlocks; i++){
 		if(block_read(FAT_BLOCK_INDEX + i,fat + i * BLOCK_SIZE / sizeof(struct fatEntry)) == -1){
-			//fs_print("Failed to read FAT block.\n");
+			fs_print("Failed to read FAT block.\n");
 			free(fat);
 			return -1;
 		}
@@ -187,7 +194,7 @@ int fs_mount(const char *diskname)
 
 	// Read the root directory from disk 
 	if (block_read(sblock.rootDir_blockIndex, &rdir) == -1) {
-		//fs_print("Failed to read root directory.\n");
+		fs_print("Failed to read root directory.\n");
 		return -1;
 	}
 
@@ -203,7 +210,7 @@ int fs_mount(const char *diskname)
 	return 0; // success
 }
 
-/* TODO: Phase 1 */
+
 int fs_umount(void)
 {
 /**
@@ -218,28 +225,28 @@ int fs_umount(void)
 
 	// Check if no FS is currently mounted  // ??? block_disk_count? or block_disk_close?
     if(block_disk_close() == -1) {
-        //fs_print("No file system is currently mounted.\n");
+        fs_print("No file system is currently mounted.\n");
         return -1;
     }
 
 	// Check if there are still open file descriptors
     for (int i = 0; i < FS_OPEN_MAX_COUNT; i++) {
         if (fds[i].fdIndex != -1) {
-            //fs_print("There are still open file descriptors.\n");
+            fs_print("There are still open file descriptors.\n");
             return -1;
         }
     }
 
 	// Write root directory information back to disk
 	if(block_write(sblock.rootDir_blockIndex, &rdir) == -1){
-		//fs_print("Failed to write root directory to disk.\n");
+		fs_print("Failed to write root directory to disk.\n");
 		return -1;
 	}
 
     // Write FAT information back to disk
     for (uint8_t i = 0; i < sblock.numOf_fatBlocks; i++) {
         if (block_write(FAT_BLOCK_INDEX + i, fat + i * BLOCK_SIZE/2) == -1) {
-            //fs_print("Failed to write FAT to disk.\n");
+            fs_print("Failed to write FAT to disk.\n");
             return -1;
         }
     }
@@ -258,7 +265,7 @@ int fs_umount(void)
 	return 0; // unmounted successful
 }
 
-/* TODO: Phase 1 */
+
 int fs_info(void)
 {
 /* 
@@ -275,7 +282,7 @@ int fs_info(void)
  */
 	// Check if no FS is currently mounted
     if(isMounted == 0){
-        //fs_print("No file system is currently mounted.\n");
+        fs_print("No file system is currently mounted.\n");
         return -1;
     }
 
@@ -316,7 +323,7 @@ int fs_create(const char *filename)
  */
 	// Check if no FS is currently mounted
     if(isMounted == 0){
-        //fs_print("No FS currently mounted.\n");
+        fs_print("No FS currently mounted.\n");
         return -1;
     }
 
@@ -328,7 +335,7 @@ int fs_create(const char *filename)
 	// Check if a file with the same name already exists
     for(int i = 0; i < FS_FILE_MAX_COUNT; i++) {
         if(strcmp(rdir[i].file_name, filename) == 0) {
-            //fs_print("File with the same name already exists.\n");
+            fs_print("File with the same name already exists.\n");
             return -1;
         }
 	}
@@ -357,7 +364,6 @@ int fs_create(const char *filename)
 
 int fs_delete(const char *filename)
 {
-/* TODO: Phase 2 */
 /**
  * fs_delete - Delete a file
  * @filename: File name
@@ -372,13 +378,13 @@ int fs_delete(const char *filename)
 
 	// Check if no FS is currently mounted
     if(isMounted == 0){
-        //fs_print("No FS currently mounted.\n");
+        fs_print("No FS currently mounted.\n");
         return -1;
     }
 
 	// Check if the filename is valid or too long
 	if(filename == NULL || strlen(filename) > FS_FILENAME_LEN){	
-		//fs_print("Invalid filename.\n");
+		fs_print("Invalid filename.\n");
 		return -1;
 	}
 
@@ -392,14 +398,14 @@ int fs_delete(const char *filename)
 	}
 	// if the filename is not found, return -1.
 	if(found == -1){	
-		//fs_print("Filename does not exist.\n");
+		fs_print("Filename does not exist.\n");
 		return -1;	
 	}
 
 	// Check if the file is already open
 	for(int i = 0; i < FS_OPEN_MAX_COUNT; i++){
 		if(fds[i].rIndex == found){
-			//fs_print("File is currently open.\n");
+			fs_print("File is currently open.\n");
 			return -1;
 		}
 	}
@@ -418,12 +424,16 @@ int fs_delete(const char *filename)
 		currentFatEntry = nextFatEntry;
 	}
 
+	// Write the root directory back to the disk
+	if(block_write(sblock.rootDir_blockIndex, &rdir) == -1){
+		return -1;
+}
+
 	return 0;
 }
 
 int fs_ls(void)
 {
-/* TODO: Phase 2 */
 /**
  * fs_ls - List files on file system
  *
@@ -434,7 +444,7 @@ int fs_ls(void)
 
 	// Check if no FS is currently mounted
     if(isMounted == 0){
-        //fprintf(stderr, "No FS currently mounted.\n");
+        fprintf(stderr, "No FS currently mounted.\n");
         return -1;
     }
 
@@ -476,13 +486,13 @@ int fs_open(const char *filename)
 
 	// Check if no FS is currently mounted
     if(isMounted == 0){
-        //fs_print("No FS currently mounted.\n");
+        fs_print("No FS currently mounted.\n");
         return -1;
     }
 
 	// Check if the filename is valid or too long
 	if(filename == NULL || strlen(filename) > FS_FILENAME_LEN){
-		//fs_print("Invalid filename.\n");
+		fs_print("Invalid filename.\n");
 		return -1;
 	}
 
@@ -496,13 +506,13 @@ int fs_open(const char *filename)
 	}
 	// If the filename is not found, return -1.
 	if(found == -1){	
-		//fs_print("Filename does not exist.\n");
+		fs_print("Filename does not exist.\n");
 		return -1;	
 	}
 
 	// Check if there are already FS_OPEN_MAX_COUNT files currently open
 	if(count_open_fds() >= FS_OPEN_MAX_COUNT){
-		//fs_print("Maximum open file limit reached.\n");
+		fs_print("Maximum open file limit reached.\n");
 		return -1;
 	}
 
@@ -539,7 +549,7 @@ int fs_close(int fd)
 
 	// Check if no FS is currently mounted
     if(isMounted == 0){
-        //fs_print("No FS currently mounted.\n");
+        fs_print("No FS currently mounted.\n");
         return -1;
     }
 
@@ -575,7 +585,7 @@ int fs_stat(int fd)
 
 	// Check if no FS is currently mounted
     if(isMounted == 0){
-        //fs_print("No FS currently mounted.\n");
+        fs_print("No FS currently mounted.\n");
         return -1;
     }
 
@@ -613,7 +623,7 @@ int fs_lseek(int fd, size_t offset)
 
 	// Check if FS is currently mounted
 	if(isMounted == 0){
-        //fs_print("No FS currently mounted.\n");
+        fs_print("No FS currently mounted.\n");
         return -1;
     }
 
@@ -668,19 +678,19 @@ int fs_write(int fd, void *buf, size_t count)
 
 	// Check if FS is currently mounted
 	if(isMounted == 0){
-		//fprintf(stderr, "No FS currently mounted.\n");
+		fs_print("No FS currently mounted.\n");
 		return 0;
 	}
 
 	// Check if file descriptor is valid or out of bounds or not currently open
 	if(fd < 0 || fd >= FS_OPEN_MAX_COUNT || fds[fd].fdIndex == -1){
-		//fprintf(stderr, "Invalid file descriptor.\n");
+		fs_print("Invalid file descriptor.\n");
 		return -1;
 	}
 
 	// Check if the buffer is NULL
 	if(buf == NULL){
-		//fs_print("Buffer is NULL.\n");
+		fs_print("Buffer is NULL.\n");
 		return 0;
 	}
 
@@ -744,26 +754,25 @@ int fs_write(int fd, void *buf, size_t count)
 	
 }
 
-/* TODO: Phase 4 */
 int fs_read(int fd, void *buf, size_t count)
 {
-    printf("fs_read called with fd=%d, buf=%p, count=%zu\n", fd, buf, count);
+    fs_print("fs_read called with fd=%d, buf=%p, count=%zu\n", fd, buf, count);
 
     // Check if FS is currently mounted
     if(isMounted == 0){
-        //fprintf(stderr, "No FS currently mounted.\n");
+        fs_print("No FS currently mounted.\n");
         return 0;
     }
 
     // Check if file descriptor is valid or out of bounds or not currently open
     if(fd < 0 || fd >= FS_OPEN_MAX_COUNT || fds[fd].fdIndex == -1){
-        //fprintf(stderr, "Invalid file descriptor.\n");
+        fs_print("Invalid file descriptor.\n");
         return -1;
     }
 
     // Check if the buffer is NULL
     if(buf == NULL){
-        //fprintf(stderr, "Buffer is NULL.\n");
+        fs_print("Buffer is NULL.\n");
         return 0;
     }
 
@@ -787,7 +796,7 @@ int fs_read(int fd, void *buf, size_t count)
 
     // Read the data from the data blocks to bounce buffer (one block at a time)
     while(remainingBytes > 0){
-        printf("Reading block %d from disk\n", dataBlock_realIndex);
+        fs_print("Reading block %d from disk\n", dataBlock_realIndex);
         int result = block_read(dataBlock_realIndex, bBuf);
         if (result == -1){
             free(bBuf);
@@ -798,7 +807,7 @@ int fs_read(int fd, void *buf, size_t count)
 
         // Determine how many bytes to read in this iteration
         size_t bytesToRead = min(bytesInCurrentBlock, remainingBytes);
-        printf("Copying %zu bytes from bounce buffer to user buffer\n", bytesToRead);
+        fs_print("Copying %zu bytes from bounce buffer to user buffer\n", bytesToRead);
         // Copy the appropriate amount of data from the bounce buffer to the user buffer
         memcpy((char*)buf + bytesRead, (char*)bBuf + current_offset % BLOCK_SIZE, bytesToRead);
 
@@ -825,3 +834,5 @@ int fs_read(int fd, void *buf, size_t count)
     // Return the total number of bytes read into the buffer
     return bytesRead;
 }
+
+
