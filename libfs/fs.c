@@ -7,7 +7,7 @@
 #include "disk.h"
 #include "fs.h"
 
-#if 1
+#if 0
 #define fs_print(fmt, ...) \
     fprintf(stderr, "%s: "fmt"\n", __func__, ##__VA_ARGS__)
 #else
@@ -834,5 +834,3 @@ int fs_read(int fd, void *buf, size_t count)
     // Return the total number of bytes read into the buffer
     return bytesRead;
 }
-
-
