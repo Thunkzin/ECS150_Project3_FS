@@ -63,8 +63,8 @@ int isMounted = 0;									// Flag to track if filesystem is currently mounted
 
 
 // Helper function prototypes
-int count_free_fat_entries(void);					// Function to count free FAT entries
-int count_free_root_dir_entries(void);				// Function to count free root directory entries
+//int count_free_fat_entries(void);					// Function to count free FAT entries
+//int count_free_root_dir_entries(void);				// Function to count free root directory entries
 int find_empty_rIndex(struct rootDirEntry *rDir);	// Function to find an empty entry index in root directory
 int count_open_fds(void);							// Function to keep track of opened file descriptors
 int get_data_block_index();							// Function to get the index of the data block corresponding to the offset
@@ -72,27 +72,7 @@ int allocate_new_data_block();						// Function to find free block index using f
 
 
 /* Helper function definitions */
-// Function to count free fat entries
-int count_free_fat_entries(void) {						// Use in fs_info() 
-    int free_fat_count = 0;								// Initialize a variable to store fat free count
-    for(int i = 0; i < sblock.numOf_dataBlocks; i++) {	// since there are as many entries as data blocks in the disk
-        if(fat[i].content == FAT_FREE) {				// Assuming 0: corresponds to fat free entry
-            free_fat_count++;							// Increment the count
-        }
-    }
-    return free_fat_count;
-} // end of count_free_fat_entries function
 
-// Function to count free root directory entries
-int count_free_root_dir_entries(void) {				// Use in fs_info() 
-    int free_root_dir_count = 0;					// Initialize a variable to store free root directory count
-    for(int i = 0; i < FS_FILE_MAX_COUNT; i++) {	// Iterate over 128 entries of the root directory 
-        if(rdir[i].file_name[0] == '\0') {			// Assumimg empty file as free entry
-            free_root_dir_count++;					// Increment the count
-        }
-    }
-    return free_root_dir_count;
-} // end of count_free_root_dir_entries
 
 // Function to find the position of an empty entry to create a file in the root directory.
 int find_empty_rIndex(struct rootDirEntry *rDir) {		// Use in fs_create()
@@ -286,11 +266,20 @@ int fs_info(void)
         return -1;
     }
 
-	// Calculate free FAT entries
-    int free_fat_count = count_free_fat_entries();
 
-    // Calculate free root directory entries
-    int free_root_dir_count = count_free_root_dir_entries();
+    int free_fat_count = 0;								// Initialize a variable to store fat free count
+    for(int i = 0; i < sblock.numOf_dataBlocks; i++) {	// since there are as many entries as data blocks in the disk
+        if(fat[i].content == FAT_FREE) {				// Assuming 0: corresponds to fat free entry
+            free_fat_count++;							// Increment the count
+        }
+    }
+
+    int free_root_dir_count = 0;					// Initialize a variable to store free root directory count
+    for(int i = 0; i < FS_FILE_MAX_COUNT; i++) {	// Iterate over 128 entries of the root directory 
+        if(rdir[i].file_name[0] == '\0') {			// Assumimg empty file as free entry
+            free_root_dir_count++;					// Increment the count
+        }
+    }
 
 	// Print out the FS info: 
     printf("FS Info:\n");
@@ -834,3 +823,4 @@ int fs_read(int fd, void *buf, size_t count)
     // Return the total number of bytes read into the buffer
     return bytesRead;
 }
+
