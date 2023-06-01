@@ -699,8 +699,8 @@ int fs_write(int fd, void *buf, size_t count)
     }
 
     while (remainingBytes > 0) {
-        int bytesInCurrentBlock = BLOCK_SIZE - (current_offset % BLOCK_SIZE);
-        int bytesToWrite = min(bytesInCurrentBlock, remainingBytes);
+        size_t bytesInCurrentBlock = BLOCK_SIZE - (current_offset % BLOCK_SIZE);
+        size_t bytesToWrite = min(bytesInCurrentBlock, remainingBytes);
 
         if (current_offset % BLOCK_SIZE != 0 || bytesToWrite < BLOCK_SIZE) {
             if (block_read(dataBlock_realIndex, bBuf) == -1) {
@@ -814,10 +814,10 @@ int fs_read(int fd, void *buf, size_t count)
 			return -1;  // Error reading block from disk
 		}
 		// Calculate the remaining bytes in the current block
-    	int bytesInCurrentBlock = BLOCK_SIZE - (current_offset % BLOCK_SIZE);
+    	size_t bytesInCurrentBlock = BLOCK_SIZE - (current_offset % BLOCK_SIZE);
 		
 		// Determine how many bytes to read in this iteration
-		int bytesToRead = min(bytesInCurrentBlock, remainingBytes);
+		size_t bytesToRead = min(bytesInCurrentBlock, remainingBytes);
 		// Copy the appropriate amount of data from the bounce buffer to the user buffer
 		memcpy((char*)buf + bytesRead, (char*)bBuf + current_offset % BLOCK_SIZE, bytesToRead);
 
