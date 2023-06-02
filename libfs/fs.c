@@ -124,7 +124,7 @@ int allocate_new_data_block(){								// use in fs_write()
 
 int fs_mount(const char *diskname)
 {	
-	If(block_disk_count() == -1){
+	if(block_disk_count() == -1){
 		return -1;
 	}
 	
