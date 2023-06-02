@@ -192,8 +192,8 @@ int fs_umount(void)
  * closed, or if there are still open file descriptors. 0 otherwise.
  */
 
-	// Check if no FS is currently mounted
-    if(isMounted == 0){ 
+	// Check if no FS is currently mounted  // ??? block_disk_count? or block_disk_close?
+    if(block_disk_close() == -1) {
         fs_print("No file system is currently mounted.\n");
         return -1;
     }
@@ -734,6 +734,7 @@ int fs_write(int fd, void *buf, size_t count)
 
 int fs_read(int fd, void *buf, size_t count)
 {
+    fs_print("fs_read called with fd=%d, buf=%p, count=%zu\n", fd, buf, count);
 
     // Check if FS is currently mounted
     if(isMounted == 0){
@@ -772,7 +773,7 @@ int fs_read(int fd, void *buf, size_t count)
     }
 
     // Read the data from the data blocks to bounce buffer (one block at a time)
-	while (remainingBytes > 0 && current_offset < rdir[rootIndex].fileSize) {
+    while(remainingBytes > 0){
         fs_print("Reading block %d from disk\n", dataBlock_realIndex);
         int result = block_read(dataBlock_realIndex, bBuf);
         if (result == -1){
@@ -811,3 +812,4 @@ int fs_read(int fd, void *buf, size_t count)
     // Return the total number of bytes read into the buffer
     return bytesRead;
 }
+Ask AI to edit or generate...
