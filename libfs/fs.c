@@ -65,10 +65,10 @@ int isMounted = 0;									// Flag to track if filesystem is currently mounted
 // Helper function prototypes
 //int count_free_fat_entries(void);					// Function to count free FAT entries
 //int count_free_root_dir_entries(void);				// Function to count free root directory entries
-//int find_empty_rIndex(struct rootDirEntry *rDir);	// Function to find an empty entry index in root directory
-//int count_open_fds(void);							// Function to keep track of opened file descriptors
-//int get_data_block_index();							// Function to get the index of the data block corresponding to the offset
-//int allocate_new_data_block();						// Function to find free block index using first-fit strategy
+int find_empty_rIndex(struct rootDirEntry *rDir);	// Function to find an empty entry index in root directory
+int count_open_fds(void);							// Function to keep track of opened file descriptors
+int get_data_block_index();							// Function to get the index of the data block corresponding to the offset
+int allocate_new_data_block();						// Function to find free block index using first-fit strategy
 
 
 /* Helper function definitions */
@@ -123,8 +123,14 @@ int allocate_new_data_block(){								// use in fs_write()
 
 
 int fs_mount(const char *diskname)
-{	
-	if(block_disk_count() == -1){
+{
+	/*// Check if a disk is already open
+    if(block_disk_count() != -1){
+        fs_print("A disk is already mounted.\n");
+        return -1;
+    }*/
+
+	if(isMounted == 0){
 		return -1;
 	}
 	
@@ -156,7 +162,7 @@ int fs_mount(const char *diskname)
 	Calculation:
 	Total FAT memory to allocate = total number of blocks occupied by the FAT in the disk * size of one FAT block 
 	*/
-	fat = malloc(sblock.numOf_fatBlocks * BLOCK_SIZE/sizeof(struct fatEntry));
+	fat = malloc(sblock.numOf_fatBlocks * BLOCK_SIZE / sizeof(struct fatEntry));
 	if(fat == NULL){		// Check if FAT memory allocation is successful
 		return -1;
 	}
@@ -175,8 +181,6 @@ int fs_mount(const char *diskname)
 		fs_print("Failed to read root directory.\n");
 		return -1;
 	}
-
-	fat[0].content = FAT_EOC;
 
 	// Initialize the file descriptors
 	for(int i = 0; i < FS_OPEN_MAX_COUNT; i++){
@@ -203,7 +207,7 @@ int fs_umount(void)
  * closed, or if there are still open file descriptors. 0 otherwise.
  */
 
-	// Check if no FS is currently mounted  
+	// Check if no FS is currently mounted  // ??? block_disk_count? or block_disk_close?
     if(isMounted == 0) {
         fs_print("No file system is currently mounted.\n");
         return -1;
@@ -238,10 +242,7 @@ int fs_umount(void)
 	}
 
 	// Close the underlying virtual disk
-	if(block_disk_close() == -1) {
-        fs_print("Unable to close the disk.\n");
-        return -1;
-    }
+	block_disk_close();
 
 	isMounted = 0;	// Mark as unmounted
 
@@ -297,6 +298,7 @@ int fs_info(void)
 	return 0; // success
 }
 
+/* TODO: Phase 2 */
 int fs_create(const char *filename)
 {
 /**
@@ -825,3 +827,4 @@ int fs_read(int fd, void *buf, size_t count)
     // Return the total number of bytes read into the buffer
     return bytesRead;
 }
+Ask AI to edit or generate...
