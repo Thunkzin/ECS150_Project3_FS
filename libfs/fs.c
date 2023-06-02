@@ -62,18 +62,7 @@ const char myVirtualDisk[8] = "ECS150FS";			// Declare a constant char array
 int isMounted = 0;									// Flag to track if filesystem is currently mounted
 
 
-// Helper function prototypes
-//int count_free_fat_entries(void);					// Function to count free FAT entries
-//int count_free_root_dir_entries(void);				// Function to count free root directory entries
-int find_empty_rIndex(struct rootDirEntry *rDir);	// Function to find an empty entry index in root directory
-int count_open_fds(void);							// Function to keep track of opened file descriptors
-int get_data_block_index();							// Function to get the index of the data block corresponding to the offset
-int allocate_new_data_block();						// Function to find free block index using first-fit strategy
-
-
-/* Helper function definitions */
-
-
+// Helper function 
 // Function to find the position of an empty entry to create a file in the root directory.
 int find_empty_rIndex(struct rootDirEntry *rDir) {		// Use in fs_create()
     for (int i = 0; i < FS_FILE_MAX_COUNT; i++) {	
@@ -108,7 +97,7 @@ int get_data_block_index(int fd){							// use in fs_read() and fs_write()
     return realIndex;
 }
 
-int allocate_new_data_block(){								// use in fs_write() 
+int allocate_new_data_block(void){								// use in fs_write() 
 	// Loop through each block in the FAT
     for (int i = 0; i < sblock.numOf_dataBlocks; i++) {
         // If the FAT entry is 0, this block is free
@@ -823,4 +812,3 @@ int fs_read(int fd, void *buf, size_t count)
     // Return the total number of bytes read into the buffer
     return bytesRead;
 }
-
