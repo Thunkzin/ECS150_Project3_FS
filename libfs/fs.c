@@ -124,15 +124,11 @@ int allocate_new_data_block(){								// use in fs_write()
 
 int fs_mount(const char *diskname)
 {
-	/*// Check if a disk is already open
+	// Check if a disk is already open
     if(block_disk_count() != -1){
         fs_print("A disk is already mounted.\n");
         return -1;
-    }*/
-
-	if(isMounted == 0){
-		return -1;
-	}
+    }
 	
 	// Open the virtual disk file
     if(block_disk_open(diskname) == -1){				// checking the condition
@@ -208,7 +204,7 @@ int fs_umount(void)
  */
 
 	// Check if no FS is currently mounted  // ??? block_disk_count? or block_disk_close?
-    if(isMounted == 0) {
+    if(block_disk_count() == -1) {
         fs_print("No file system is currently mounted.\n");
         return -1;
     }
